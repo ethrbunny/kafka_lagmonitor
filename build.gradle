@@ -1,0 +1,71 @@
+apply plugin: 'java'
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+// In this section you declare where to find the dependencies of your project
+repositories {
+    // Use 'jcenter' for resolving your dependencies.
+    // You can declare any Maven/Ivy/file repository here.
+    jcenter()
+    mavenLocal()
+
+    maven {
+        url 'https://artifactory.cedexis.com/artifactory/libs-release-local/'
+    }
+
+}
+
+// In this section you declare the dependencies for your production and test code
+dependencies {
+    compile 'org.slf4j:slf4j-api:1.7.21'
+    compile 'ch.qos.logback:logback-classic:1.1.7'
+    compile 'com.cedexis:ads_util:1.0'
+
+    compile "org.apache.kafka:kafka_2.11:0.10.0.1"
+
+    compile 'com.datadoghq:java-dogstatsd-client:2.2'
+
+    compile group: 'com.101tec', name: 'zkclient', version: '0.10'
+
+    // https://mvnrepository.com/artifact/com.google.guava/guava
+    compile group: 'com.google.guava', name: 'guava', version: '20.0'
+
+    testCompile 'junit:junit:4.12'
+    testCompile 'org.mockito:mockito-all:1.10.19'
+    testCompile group: 'org.powermock', name: 'powermock-module-junit4', version: '1.6.5'
+    testCompile group: 'org.powermock', name: 'powermock-api-mockito', version: '1.6.5'
+
+}
+
+configurations {
+    compile.exclude module: 'slf4j-log4j12'
+}
+
+def String getProjectProperty(String propertyName)
+{
+    String propVal = "null"
+    if (hasProperty(propertyName)) {
+        propVal = this.properties[propertyName]
+    }
+
+    return propVal
+}
+
+task fatJar(type: Jar) {
+    zip64 true
+    description = "Gather all .jar dependencies into one file"
+    manifest {
+        attributes 'Implementation-Title': 'Gradle Jar File Example',
+                'Implementation-Version': 1.0,
+                'Main-Class': 'com.cedexis.lagmonitor.Main'
+    }
+    baseName = project.name + '-all'
+    from {
+        configurations.compile.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF','META-INF/*.DSA'
+    with jar
+}
+

@@ -1,0 +1,43 @@
+#brokers: ["kafka-node01:9092","kafka-node02:9092","kafka-node03:9092"]
+brokers: ["kafka-node01.c.kafka-streaming-log-processing.internal:9092,kafka-node02.c.kafka-streaming-log-processing.internal:9092,kafka-node03.c.kafka-streaming-log-processing.internal:9092"]
+items:
+  - topic: "prt_files"
+    group: "prt_file_consumer"
+
+  - topic: "prt_records"
+    group: "prt_bq_writer"
+
+  - topic: "prt_records"
+    group: "prt_bq_writer2"
+
+#  - topic: "prt_records"
+#    group: "PRTAnom_Feed_consumer"
+
+#  - topic: "radar_files"
+#    group: "radar_file_consumer"
+
+#  - topic: "rtdetail_breakout"
+#    group: "RtDetailBreakoutProcessor"
+
+#  - topic: "rtdetail_breakout_filtered"
+#    group: "RtDetailBreakoutProcessor"
+
+  - topic: "video_files_lambda"
+    group: "video_file_consumer"
+
+  - topic: "video_v2_records"
+    group: "VideoJoinProcessor"
+
+  - topic: "video_v1v3_records"
+    group: "VideoJoinProcessor"
+
+  - topic: "video_preproc"
+    group: "video_bq_writer"
+
+timer_msec: 10000
+
+# ddog
+appname: "KafkaLagMonitor"
+#ddog_server: "datadog-kslp.c.kafka-streaming-log-processing.internal"
+ddog_server: "localhost"
+ddog_project: "kslp"
