@@ -2,23 +2,16 @@ package com.cedexis.lagmonitor;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-//import com.fasterxml.jackson.databind.deser.std.StringDeserializer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import kafka.cluster.Broker;
-import kafka.tools.ConsoleProducer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.ZooKeeper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -27,14 +20,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static java.time.LocalDateTime.now;
+
 
 /**
  * Created on 11/23/16.
  */
 public class Main {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
+    private static final String TABLE = "lag";
+    private static final String KEYSPACE = "consumer_lag";
 
     private static int TIMER_MSEC = 10 * 1000;
+
+    private CassandraConnector cassandraConnector = new CassandraConnector();
 
     public static void main(String[] args) throws Exception {
         Main main = new Main();
@@ -115,6 +114,21 @@ public class Main {
     }
 */
 
+
+    public void insertValue(String topic, String group, int partition, long lag) {
+        StringBuilder sb = new StringBuilder("INSERT INTO ")
+                .append(TABLE).append("(topic, group, partition, lag, stamp) ")
+                .append("VALUES ('").append(topic)
+                .append("', '").append(group)
+                .append("', ").append(partition)
+                .append(", ").append(lag)
+                .append("', '").append(now())
+                .append("');");
+
+        String query = sb.toString();
+        cassandraConnector.getSession().execute(query);
+    }
+
     private boolean getOffsets(String topic, String group, Map<String, Object> configMap) {
         KafkaConsumer<String, String> kafkaConsumer = getConsumer(group, configMap);
         List<PartitionInfo> partitionInfos = kafkaConsumer.partitionsFor(topic);
@@ -170,6 +184,8 @@ public class Main {
                 long lEnd = endList.get(i);
 
                 sumLag += (lEnd - lStart);
+
+                insertValue(topic, group, partitionInfos.get(i).partition(), (lEnd - lStart));
              //   DDog.getDDog().gauge("lag", lEnd - lStart, "partition:" + i, "topic:" + topic, "group:" + group);
                 LOGGER.debug("partition: {}  start: {}   end: {}  lag: {}", i, lStart, lEnd, (lEnd - lStart));
             }

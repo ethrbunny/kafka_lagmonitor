@@ -33,11 +33,13 @@ dependencies {
     // https://mvnrepository.com/artifact/com.google.guava/guava
     compile group: 'com.google.guava', name: 'guava', version: '20.0'
 
+    compile group: 'com.datastax.cassandra', name: 'cassandra-driver-core', version: '3.1.0'
+
     testCompile 'junit:junit:4.12'
     testCompile 'org.mockito:mockito-all:1.10.19'
     testCompile group: 'org.powermock', name: 'powermock-module-junit4', version: '1.6.5'
     testCompile group: 'org.powermock', name: 'powermock-api-mockito', version: '1.6.5'
-
+    testCompile group: 'org.cassandraunit', name: 'cassandra-unit', version: '3.0.0.1'
 }
 
 configurations {
