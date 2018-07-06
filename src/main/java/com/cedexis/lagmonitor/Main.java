@@ -2,7 +2,7 @@ package com.cedexis.lagmonitor;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.deser.std.StringDeserializer;
+//import com.fasterxml.jackson.databind.deser.std.StringDeserializer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import kafka.cluster.Broker;
@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooKeeper;
 import org.slf4j.Logger;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -55,8 +57,8 @@ public class Main {
     }
 
     private void startProcess() throws Exception {
-        ClassLoader classLoader = getClass().getClassLoader();
-        File jsonFile = new File(classLoader.getResource("config.json").getFile());
+        ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+        InputStream jsonFile = classloader.getResourceAsStream("config.json");
 
         ObjectMapper mapper = new ObjectMapper();
         TypeReference<HashMap<String,Object>> typeRef
