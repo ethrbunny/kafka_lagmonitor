@@ -19,11 +19,14 @@ repositories {
 dependencies {
     compile 'org.slf4j:slf4j-api:1.7.21'
     compile 'ch.qos.logback:logback-classic:1.1.7'
-    compile 'com.cedexis:ads_util:1.0'
+   // compile 'com.cedexis:ads_util:1.0'
 
     compile "org.apache.kafka:kafka_2.11:0.10.0.1"
 
-    compile 'com.datadoghq:java-dogstatsd-client:2.2'
+   // compile 'com.datadoghq:java-dogstatsd-client:2.2'
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.6'
+
 
     compile group: 'com.101tec', name: 'zkclient', version: '0.10'
 

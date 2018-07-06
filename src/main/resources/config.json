@@ -1,0 +1,14 @@
+{
+  "brokers" : [
+      "cass12.orcatech",
+    "cass11.orcatech"
+    ],
+  "topics" : [
+    {"collectd" : "collect_group"},
+    {"blah" : "blahgroup"}
+  ],
+
+  "timer_msec" : 10000
+
+
+}
