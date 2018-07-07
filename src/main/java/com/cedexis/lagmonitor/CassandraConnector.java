@@ -3,24 +3,28 @@ package com.cedexis.lagmonitor;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Session;
 
+import java.net.InetAddress;
+import java.util.Collection;
+
 public class CassandraConnector {
 
     private Cluster cluster;
 
-    private Session session;
+    private static Session session = null;
 
-    public void connect(String node, Integer port) {
-        Cluster.Builder b = Cluster.builder().addContactPoint(node);
-        if (port != null) {
-            b.withPort(port);
-        }
+    private static int PORT = 9042;
+
+    public void connect(Collection<InetAddress> addresses) {
+        Cluster.Builder b = Cluster.builder().addContactPoints(addresses);
+        b.withPort(PORT);
+
         cluster = b.build();
 
         session = cluster.connect();
     }
 
-    public Session getSession() {
-        return this.session;
+    public static Session getSession() {
+        return session;
     }
 
     public void close() {

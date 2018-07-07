@@ -1,7 +1,9 @@
 package com.cedexis.lagmonitor;
 
+import com.datastax.driver.core.ResultSet;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -17,6 +19,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -34,58 +38,94 @@ public class Main {
     private static final String KEYSPACE = "consumer_lag";
 
     private static int TIMER_MSEC = 10 * 1000;
-
-    private CassandraConnector cassandraConnector = new CassandraConnector();
+    private static List<Map<String, String>> topics = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         Main main = new Main();
 
-
         main.startProcess();
-    }
-
-
-    static class StatusHandler implements HttpHandler {
-        public void handle(HttpExchange t) throws IOException {
-            byte [] response = "OK".getBytes();
-            t.sendResponseHeaders(200, response.length);
-            OutputStream os = t.getResponseBody();
-            os.write(response);
-            os.close();
-        }
     }
 
     public Main() {
     }
 
-    private void startProcess() throws Exception {
-        cassandraConnector.connect("cass12.orcatech", 9042);
+    public Map<String, Object> loadConfig() {
+        ObjectMapper mapper = new ObjectMapper();
+        TypeReference<HashMap<String,Object>> typeRef = new TypeReference<HashMap<String,Object>>() {};
+
         ClassLoader classloader = Thread.currentThread().getContextClassLoader();
         InputStream jsonFile = classloader.getResourceAsStream("config.json");
 
-        ObjectMapper mapper = new ObjectMapper();
-        TypeReference<HashMap<String,Object>> typeRef
-                = new TypeReference<HashMap<String,Object>>() {};
+        HashMap<String, Object> configMap;
+        try {
+            configMap = mapper.readValue(jsonFile, typeRef);
+            return configMap;
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
 
-        HashMap<String,Object> configMap = mapper.readValue(jsonFile, typeRef);
+    public void initCassandra(Map<String, Object> configMap) {
+        List<String>cassandraNodes = (List)configMap.get("cassandra");
+        List<InetAddress> nodes = new ArrayList<>();
+        for(String node : cassandraNodes) {
+            try {
+                InetAddress address = InetAddress.getByName(node);
+                nodes.add(address);
+            } catch(Exception exception) {
+                throw new RuntimeException(exception);
+            }
+        }
 
-        Integer timerMSec = (Integer)configMap.get("timer_msec");
+        CassandraConnector cassandraConnector = new CassandraConnector();
+        cassandraConnector.connect(nodes);
 
-        List<Map<String, String>> topics = (List<Map<String, String>>)configMap.get("topics");
+    }
 
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
-        executor.scheduleAtFixedRate(() -> {
+    public synchronized void updateTopics(List<Map<String, String>>list ) {
+        topics = list;
+    }
+
+    public void startProcess() {
+        Map<String, Object> configMap = loadConfig();
+        initCassandra(configMap);
+
+        // topics
+        Integer topicTimerMSec = (Integer)configMap.get("reload_msec");
+
+        ScheduledExecutorService executorTopics = Executors.newScheduledThreadPool(1);
+        executorTopics.scheduleAtFixedRate(() -> {
+            List<Map<String, String>> newList = new ArrayList<>();
+
+            List<Map<String, String>> topicMap = getTopics();
+            for(Map<String, String> topic : topicMap) {
+                newList.add(topic);
+
+                Set<Map.Entry<String, String>> entries = topic.entrySet();
+                for(Map.Entry<String, String> entry : entries) {
+                    LOGGER.debug("loading {}:{}", entry.getKey(), entry.getValue());
+                }
+            }
+
+            updateTopics(newList);
+
+        }, 0, topicTimerMSec, TimeUnit.MILLISECONDS);
+
+        Integer lagTimerMSec = (Integer)configMap.get("timer_msec");
+
+        // lag
+        ScheduledExecutorService executorLag = Executors.newScheduledThreadPool(1);
+        executorLag.scheduleAtFixedRate(() -> {
+            // local copy we can edit
+             List<Map<String, String>> localTopics = topics;
              for(Map<String, String> topicMap : topics) {
                  topicMap.forEach((topic, group) -> {
-                     LOGGER.debug(topic + ":" + group);
-
+                     LOGGER.debug("reading lag: {}:{}", topic, group);
                      try {
-
                          if (!getOffsets(topic, group, configMap)) {
-                             LOGGER.warn("problem with {}/{} - removing from list", topic, group);
-                         //    workList.remove(workItem);
+                             LOGGER.warn("problem with {}/{} ", topic, group);
+                             localTopics.remove(topicMap);
                          }
-                         getOffsets(topic, group, configMap);
                      } catch (Exception exception) {
                          LOGGER.error("runLoop exception: topic: {}  group: {}  {}", topic, group, exception);
                      }
@@ -93,7 +133,9 @@ public class Main {
 
              }
 
-        }, timerMSec, timerMSec, TimeUnit.MILLISECONDS);
+             updateTopics(localTopics);
+
+        }, lagTimerMSec, lagTimerMSec, TimeUnit.MILLISECONDS);
     }
 
 /*
@@ -118,6 +160,17 @@ public class Main {
     }
 */
 
+    public List<Map<String, String>>getTopics() {
+        List<Map<String, String>> returnMap = new ArrayList<>();
+        ResultSet rows = CassandraConnector.getSession().execute("select topic, group from consumer_lag.topics");
+        rows.forEach((row)-> {
+            Map<String, String> rowMap = new HashMap<>();
+            rowMap.put(row.getString("topic"), row.getString("group"));
+            returnMap.add(rowMap);
+        });
+
+        return returnMap;
+    }
 
     public void insertValue(String topic, String group, int partition, long lag) {
         StringBuilder sb = new StringBuilder("INSERT INTO ")
@@ -130,10 +183,10 @@ public class Main {
                 .append("') using ttl 86400;");
 
         String query = sb.toString();
-        cassandraConnector.getSession().execute(query);
+        CassandraConnector.getSession().execute(query);
     }
 
-    private boolean getOffsets(String topic, String group, Map<String, Object> configMap) {
+    public boolean getOffsets(String topic, String group, Map<String, Object> configMap) {
         KafkaConsumer<String, String> kafkaConsumer = getConsumer(group, configMap);
         List<PartitionInfo> partitionInfos = kafkaConsumer.partitionsFor(topic);
 
@@ -190,14 +243,11 @@ public class Main {
                 sumLag += (lEnd - lStart);
 
                 insertValue(topic, group, partitionInfos.get(i).partition(), (lEnd - lStart));
-             //   DDog.getDDog().gauge("lag", lEnd - lStart, "partition:" + i, "topic:" + topic, "group:" + group);
                 LOGGER.debug("topic: {}  group: {} partition: {}  start: {}   end: {}  lag: {}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, (lEnd - lStart));
             }
         } catch(Exception exception) {
             LOGGER.error("partition count error", exception);
         }
-
-     //   DDog.getDDog().gauge("lag", sumLag, "partition:sum", "topic:" + topic, "group:" + group);
 
         kafkaConsumer.poll(0);
 

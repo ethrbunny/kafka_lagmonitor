@@ -3,11 +3,13 @@
       "kafka1.orcatech:9092",
     "kafka2.orcatech:9092"
     ],
-  "topics" : [
-    {"collectd_test" : "collectd_group"}
-  ],
 
-  "timer_msec" : 10000
+  "timer_msec" : 10000,
+  "cassandra" : [
+    "cass11.orcatech",
+    "cass12.orcatech"
+  ],
+  "reload_msec" : 300000
 
 
 }
