@@ -1,11 +1,10 @@
 {
   "brokers" : [
-      "cass12.orcatech",
-    "cass11.orcatech"
+      "kafka1.orcatech:9092",
+    "kafka2.orcatech:9092"
     ],
   "topics" : [
-    {"collectd" : "collect_group"},
-    {"blah" : "blahgroup"}
+    {"collectd_test" : "collectd_group"}
   ],
 
   "timer_msec" : 10000

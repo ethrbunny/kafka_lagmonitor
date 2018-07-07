@@ -21,7 +21,7 @@ dependencies {
     compile 'ch.qos.logback:logback-classic:1.1.7'
    // compile 'com.cedexis:ads_util:1.0'
 
-    compile "org.apache.kafka:kafka_2.11:0.10.0.1"
+    compile "org.apache.kafka:kafka_2.11:1.1.0"
 
    // compile 'com.datadoghq:java-dogstatsd-client:2.2'
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
@@ -33,7 +33,7 @@ dependencies {
     // https://mvnrepository.com/artifact/com.google.guava/guava
     compile group: 'com.google.guava', name: 'guava', version: '20.0'
 
-    compile group: 'com.datastax.cassandra', name: 'cassandra-driver-core', version: '3.1.0'
+    compile group: 'com.datastax.cassandra', name: 'cassandra-driver-core', version: '3.5.0'
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.mockito:mockito-all:1.10.19'

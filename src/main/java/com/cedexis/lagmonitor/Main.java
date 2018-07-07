@@ -2,6 +2,7 @@ package com.cedexis.lagmonitor;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,7 +30,7 @@ import static java.time.LocalDateTime.now;
  */
 public class Main {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
-    private static final String TABLE = "lag";
+    private static final String TABLE = "consumer_lag.lag";
     private static final String KEYSPACE = "consumer_lag";
 
     private static int TIMER_MSEC = 10 * 1000;
@@ -37,6 +39,7 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         Main main = new Main();
+
 
         main.startProcess();
     }
@@ -56,6 +59,7 @@ public class Main {
     }
 
     private void startProcess() throws Exception {
+        cassandraConnector.connect("cass12.orcatech", 9042);
         ClassLoader classloader = Thread.currentThread().getContextClassLoader();
         InputStream jsonFile = classloader.getResourceAsStream("config.json");
 
@@ -122,8 +126,8 @@ public class Main {
                 .append("', '").append(group)
                 .append("', ").append(partition)
                 .append(", ").append(lag)
-                .append("', '").append(now())
-                .append("');");
+                .append(", '").append(now())
+                .append("') using ttl 86400;");
 
         String query = sb.toString();
         cassandraConnector.getSession().execute(query);
@@ -187,7 +191,7 @@ public class Main {
 
                 insertValue(topic, group, partitionInfos.get(i).partition(), (lEnd - lStart));
              //   DDog.getDDog().gauge("lag", lEnd - lStart, "partition:" + i, "topic:" + topic, "group:" + group);
-                LOGGER.debug("partition: {}  start: {}   end: {}  lag: {}", i, lStart, lEnd, (lEnd - lStart));
+                LOGGER.debug("topic: {}  group: {} partition: {}  start: {}   end: {}  lag: {}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, (lEnd - lStart));
             }
         } catch(Exception exception) {
             LOGGER.error("partition count error", exception);
