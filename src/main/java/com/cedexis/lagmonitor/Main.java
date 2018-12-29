@@ -22,8 +22,13 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.LocalDateTime.now;
@@ -34,7 +39,7 @@ import static java.time.LocalDateTime.now;
  */
 public class Main {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
-    private static final String TABLE = "consumer_lag.lag";
+    private static final String TABLE = "topics";
     private static final String KEYSPACE = "consumer_lag";
 
     private static int TIMER_MSEC = 10 * 1000;
@@ -112,7 +117,6 @@ public class Main {
         }, 0, topicTimerMSec, TimeUnit.MILLISECONDS);
 
         Integer lagTimerMSec = (Integer)configMap.get("timer_msec");
-
         // lag
         ScheduledExecutorService executorLag = Executors.newScheduledThreadPool(1);
         executorLag.scheduleAtFixedRate(() -> {
@@ -124,7 +128,7 @@ public class Main {
                      try {
                          if (!getOffsets(topic, group, configMap)) {
                              LOGGER.warn("problem with {}/{} ", topic, group);
-                             localTopics.remove(topicMap);
+                         //    localTopics.remove(topicMap);
                          }
                      } catch (Exception exception) {
                          LOGGER.error("runLoop exception: topic: {}  group: {}  {}", topic, group, exception);
@@ -197,7 +201,6 @@ public class Main {
             kafkaConsumer.close();
             return false;
         }
-
         List<org.apache.kafka.common.TopicPartition>topicAndPartitions = new ArrayList<>();
 
         for(int i = 0; i < partitionInfos.size(); i++) {
@@ -210,29 +213,99 @@ public class Main {
 
         kafkaConsumer.assign(topicAndPartitions);
 
+
+
+ExecutorService executor = Executors.newCachedThreadPool();
+Callable<Object> task = new Callable<Object>() {
+   public Object call() {
         for(int i = 0; i < partitionInfos.size(); i++) {
             OffsetAndMetadata offsetAndMetadata = kafkaConsumer.committed(topicAndPartitions.get(i));
             if(offsetAndMetadata != null) {
                 startList.add(offsetAndMetadata.offset());
             }
         }
+      return null;
+   }
+};
+Future<Object> future = executor.submit(task);
+try {
+   Object result = future.get(2, TimeUnit.SECONDS); 
+} catch (TimeoutException ex) {
+   // handle the timeout
+   LOGGER.warn("timeout..skipping..");
+    return false;
+    } catch (InterruptedException e) {
+       // handle the interrupts
+    } catch (ExecutionException e) {
+       // handle other exceptions
+    } finally {
+       future.cancel(true); // may or may not desire this
+executor.shutdownNow();    
 
+ }
+
+
+/*
+        for(int i = 0; i < partitionInfos.size(); i++) {
+            OffsetAndMetadata offsetAndMetadata = kafkaConsumer.committed(topicAndPartitions.get(i));
+            if(offsetAndMetadata != null) {
+                startList.add(offsetAndMetadata.offset());
+            }
+        }
+*/
         // did we find any active partitions?
         if(startList.size() == 0) {
             LOGGER.warn("topic:group not found: {}:{}", topic, group);
-            kafkaConsumer.wakeup();
-            kafkaConsumer.close();
+//            kafkaConsumer.wakeup();
+//            kafkaConsumer.close();
 
             return false;
         }
 
+
+executor = Executors.newCachedThreadPool();
+task = new Callable<Object>() {
+   public Object call() {
         kafkaConsumer.seekToEnd(topicAndPartitions);
 
         for(int i = 0; i < partitionInfos.size(); i++) {
             endList.add(i, kafkaConsumer.position(topicAndPartitions.get(i)));
         }
+      return null;
+   }
+};
+future = executor.submit(task);
+try {
+   Object result = future.get(2, TimeUnit.SECONDS); 
+} catch (TimeoutException ex) {
+   // handle the timeout
+   LOGGER.warn("timeout..skipping..");
+    return false;
+    } catch (InterruptedException e) {
+       // handle the interrupts
+    } catch (ExecutionException e) {
+       // handle other exceptions
+    } finally {
+       future.cancel(true); // may or may not desire this
+executor.shutdownNow();    
 
+ }
+
+/*
+        kafkaConsumer.seekToEnd(topicAndPartitions);
+
+        for(int i = 0; i < partitionInfos.size(); i++) {
+            endList.add(i, kafkaConsumer.position(topicAndPartitions.get(i)));
+        }
+*/
         LOGGER.debug("startlist.size: {}  endlist.size: {}  partitions: {}", startList.size(), endList.size(), partitionInfos.size());
+
+
+
+        if(startList.size() != endList.size())  {
+            LOGGER.error("startlist.Size() '{}' != endlist.Size() '{}'", startList.size(), endList.size()) ;
+            return false;
+        }
 
         long sumLag = 0;
         try {
@@ -242,12 +315,15 @@ public class Main {
 
                 sumLag += (lEnd - lStart);
 
-                insertValue(topic, group, partitionInfos.get(i).partition(), (lEnd - lStart));
-                LOGGER.debug("topic: {}  group: {} partition: {}  start: {}   end: {}  lag: {}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, (lEnd - lStart));
+        //        insertValue(topic, group, partitionInfos.get(i).partition(), (lEnd - lStart));
+                LOGGER.info("{'partition_lag':{'topic':'{}','group':'{}','partition':{},'start':{},'end':{},'lag':{}}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, (lEnd - lStart));
             }
         } catch(Exception exception) {
             LOGGER.error("partition count error", exception);
+            return false;
         }
+
+        LOGGER.info("{'consumer_lag':{'topic':'{}','group':'{}','sum':{}}", topic, group, sumLag);
 
         kafkaConsumer.poll(0);
 
