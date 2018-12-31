@@ -3,25 +3,18 @@ package com.cedexis.lagmonitor;
 import com.datastax.driver.core.ResultSet;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.kafka.common.errors.WakeupException;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
@@ -32,7 +25,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static java.time.LocalDateTime.now;
 
 
 /**
@@ -203,14 +195,14 @@ public class Main {
         ExecutorService executor = Executors.newCachedThreadPool();
         Callable<Object> task = () -> {
              for(int i = 0; i < partitionInfos.size(); i++) {
-                try {
-                 OffsetAndMetadata offsetAndMetadata = kafkaConsumer.committed(topicAndPartitions.get(i));
-                 if(offsetAndMetadata != null) {
-                     startList.add(offsetAndMetadata.offset());
+                 try {
+                     OffsetAndMetadata offsetAndMetadata = kafkaConsumer.committed(topicAndPartitions.get(i));
+                     if (offsetAndMetadata != null) {
+                         startList.add(offsetAndMetadata.offset());
+                     }
+                 } catch(WakeupException we) {
+                     kafkaConsumer.close();
                  }
-                } catch(WakeupException we) {
-                    kafkaConsumer.close();
-                }
              }
            return null;
         };
