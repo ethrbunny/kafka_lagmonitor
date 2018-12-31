@@ -32,7 +32,6 @@ dependencies {
 
     // https://mvnrepository.com/artifact/com.google.guava/guava
     compile group: 'com.google.guava', name: 'guava', version: '20.0'
-    compile 'com.googlecode.json-simple:json-simple:+'
 
     compile group: 'com.datastax.cassandra', name: 'cassandra-driver-core', version: '3.5.0'
 

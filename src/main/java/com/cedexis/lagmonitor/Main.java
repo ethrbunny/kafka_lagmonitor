@@ -9,10 +9,8 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.PartitionInfo;
-import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.kafka.common.errors.WakeupException;
 
 import java.awt.*;
 import java.io.InputStream;
@@ -286,33 +284,15 @@ public class Main {
                 long lEnd = endList.get(i);
 
                 sumLag += (lEnd - lStart);
-                JSONObject jsonOuter = new JSONObject();
-                JSONObject jsonInner = new JSONObject();
-
-                jsonInner.put("topic", topic);
-                jsonInner.put("group", group);
-                jsonInner.put("partition", partitionInfos.get(i).partition());
-                jsonInner.put("start", lStart);
-                jsonInner.put("end", lEnd);
-                jsonInner.put("lag", lEnd - lStart);
-
-                jsonOuter.put("partition_lag", jsonInner);
-                LOGGER.info(jsonOuter.toJSONString());
+                LOGGER.info("type:partition_lag topic:{} group:{} partition:{} start:{} end:{} lag:{}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, lEnd - lStart);
             }
         } catch(Exception exception) {
             LOGGER.error("partition count error", exception);
             return false;
         }
 
-        JSONObject jsonOuter = new JSONObject();
-        JSONObject jsonInner = new JSONObject();
-        jsonInner.put("topic", topic);
-        jsonInner.put("group", group);
-        jsonInner.put("sum", sumLag);
-        jsonOuter.put("consumer_lag", jsonInner);
+        LOGGER.info("type:consumer_lag topic:{} group:{} sum:{}", topic, group, sumLag);
 
-        LOGGER.info(jsonOuter.toJSONString());
-        
         kafkaConsumer.poll(0);
 
         topicAndPartitions.clear();
