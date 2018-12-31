@@ -6,8 +6,7 @@
 
   "timer_msec" : 10000,
   "cassandra" : [
-    "cass11.orcatech",
-    "cass12.orcatech"
+    "cass.orcatech"
   ],
   "reload_msec" : 300000
 

@@ -14,6 +14,7 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.kafka.common.errors.WakeupException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -202,10 +203,14 @@ public class Main {
         ExecutorService executor = Executors.newCachedThreadPool();
         Callable<Object> task = () -> {
              for(int i = 0; i < partitionInfos.size(); i++) {
+                try {
                  OffsetAndMetadata offsetAndMetadata = kafkaConsumer.committed(topicAndPartitions.get(i));
                  if(offsetAndMetadata != null) {
                      startList.add(offsetAndMetadata.offset());
                  }
+                } catch(WakeupException we) {
+                    kafkaConsumer.close();
+                }
              }
            return null;
         };
@@ -217,7 +222,6 @@ public class Main {
            // handle the timeout
             LOGGER.warn("timeout..skipping..");
             kafkaConsumer.wakeup();
-            kafkaConsumer.close();
 
             return false;
         } catch (InterruptedException e) {
@@ -241,10 +245,13 @@ public class Main {
         executor = Executors.newCachedThreadPool();
         task = () -> {
              kafkaConsumer.seekToEnd(topicAndPartitions);
-
+            try {
              for(int i = 0; i < partitionInfos.size(); i++) {
                  endList.add(i, kafkaConsumer.position(topicAndPartitions.get(i)));
              }
+            } catch(WakeupException we) {
+                kafkaConsumer.close();
+            }
            return null;
         };
 
@@ -255,7 +262,6 @@ public class Main {
             // handle the timeout
             LOGGER.warn("timeout..skipping..");
             kafkaConsumer.wakeup();
-            kafkaConsumer.close();
 
             return false;
         } catch (InterruptedException e) {
@@ -286,14 +292,14 @@ public class Main {
 
                 sumLag += (lEnd - lStart);
 
-                LOGGER.info("{'partition_lag':{'topic':'{}','group':'{}','partition':{},'start':{},'end':{},'lag':{}}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, (lEnd - lStart));
+                LOGGER.info("{\"partition_lag\":{\"topic\":\"{}\",\"group\":\"{}\",\"partition\":{},\"start\":{},\"end\":{},\"lag\":{}}}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, (lEnd - lStart));
             }
         } catch(Exception exception) {
             LOGGER.error("partition count error", exception);
             return false;
         }
 
-        LOGGER.info("{'consumer_lag':{'topic':'{}','group':'{}','sum':{}}", topic, group, sumLag);
+        LOGGER.info("{\"consumer_lag\":{\"topic\":\"{}\",\"group\":\"{}\",\"sum\":{}}}", topic, group, sumLag);
 
         kafkaConsumer.poll(0);
 
