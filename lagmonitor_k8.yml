@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: kafka
+  name: kafka-lagmonitor
+  labels: 
+    app: kafka-lagmonitor
+spec:
+  selector:
+    matchLabels:
+      app: kafka-lagmonitor
+  template:
+    metadata:
+      labels:
+        app: kafka-lagmonitor
+    spec:
+      containers:
+      - name: kafka-lagmonitor
+        image: docker.io/ethrbunny/kafka_lagmonitor:latest
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - 10.95.96.103
+
