@@ -1,5 +1,6 @@
 package com.cedexis.lagmonitor;
 
+import co.elastic.apm.api.CaptureTransaction;
 import com.datastax.driver.core.ResultSet;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -158,6 +159,7 @@ public class Main {
     }
 */
 
+    @CaptureTransaction
     public List<Map<String, String>>getTopics() {
         List<Map<String, String>> returnMap = new ArrayList<>();
         ResultSet rows = CassandraConnector.getSession().execute("select topic, group from consumer_lag.topics");
@@ -170,6 +172,7 @@ public class Main {
         return returnMap;
     }
 
+    @CaptureTransaction
     public boolean getOffsets(String topic, String group, Map<String, Object> configMap) {
         KafkaConsumer<String, String> kafkaConsumer = getConsumer(group, configMap);
         List<PartitionInfo> partitionInfos = kafkaConsumer.partitionsFor(topic);

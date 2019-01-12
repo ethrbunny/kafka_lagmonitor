@@ -34,6 +34,7 @@ dependencies {
     compile group: 'com.google.guava', name: 'guava', version: '20.0'
 
     compile group: 'com.datastax.cassandra', name: 'cassandra-driver-core', version: '3.5.0'
+    compile "co.elastic.apm:apm-agent-api:+"
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.mockito:mockito-all:1.10.19'
