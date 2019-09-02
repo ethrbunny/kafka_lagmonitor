@@ -25,6 +25,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import io.searchbox.client.JestClient;
+import io.searchbox.client.JestClientFactory;
+import io.searchbox.client.JestResult;
+import io.searchbox.client.JestResultHandler;
+
+import io.searchbox.client.config.HttpClientConfig;
+import io.searchbox.core.*;
+import io.searchbox.indices.CreateIndex;
+import io.searchbox.indices.IndicesExists;
+
+import java.io.IOException;
 
 /**
  * Created on 11/23/16.
@@ -33,6 +44,8 @@ public class Main {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
     private static int TIMER_MSEC = 10 * 1000;
+    private static List<Map<String, String>> topics = new ArrayList<>();
+    private static JestClient jestClient;
 
     public static void main(String[] args) throws Exception {
         Main main = new Main();
@@ -40,6 +53,9 @@ public class Main {
         main.startProcess();
     }
 
+    public Main() {
+        jestClient = getJestClient();
+    }
 
     static class StatusHandler implements HttpHandler {
         public void handle(HttpExchange t) throws IOException {
@@ -168,14 +184,50 @@ public class Main {
                 long lEnd = endList.get(i);
 
                 sumLag += (lEnd - lStart);
-             //   DDog.getDDog().gauge("lag", lEnd - lStart, "partition:" + i, "topic:" + topic, "group:" + group);
                 LOGGER.debug("partition: {}  start: {}   end: {}  lag: {}", i, lStart, lEnd, (lEnd - lStart));
             }
         } catch(Exception exception) {
             LOGGER.error("partition count error", exception);
         }
 
-     //   DDog.getDDog().gauge("lag", sumLag, "partition:sum", "topic:" + topic, "group:" + group);
+        LOGGER.debug("type:consumer_lag lagmonitor.consumer.topic:{} lagmonitor.consumer.group:{} lagmonitor.consumer.sum:{}", topic, group, sumLag);
+
+        // does elastic index exist?
+        JestResult jestResult;
+        try {
+            jestResult = jestClient.execute(new IndicesExists.Builder("kafka_consumer_lag_test").build());
+        } catch(IOException ioe) {
+            LOGGER.error("Unable to determine if index exists", ioe);
+            return false;
+        }
+
+        if (!jestResult.isSucceeded()) {
+            LOGGER.info("creating index");
+
+            try {
+                jestClient.execute(new CreateIndex.Builder("kafka_consumer_lag_test").build());
+            } catch(IOException ioe) {
+                LOGGER.error("Unable to create index", ioe);
+                return false;
+            }
+        }
+
+        // write directly to elastic
+        Map<String, Object>lagInfoMap = new LinkedHashMap();
+        lagInfoMap.put("type", "consumer_lag");
+        lagInfoMap.put("lagmonitor.consumer.topic", topic);
+        lagInfoMap.put("lagmonitor.consumer.group", group);
+        lagInfoMap.put("lagmonitor.consumer.sum", sumLag);
+
+        try {
+            jestResult = jestClient.execute(new Index.Builder(lagInfoMap).index("kafka_consumer_lag_test/").build());
+            if(!jestResult.isSucceeded()) {
+                LOGGER.error(jestResult.toString());
+            }
+        } catch(IOException ioe) {
+            LOGGER.error("Unable to write to elastic", ioe);
+            return false;
+        }
 
         kafkaConsumer.poll(0);
 
@@ -199,6 +251,16 @@ public class Main {
         return brokerList.substring(0, brokerList.length() - 1);
     }
 
+    public JestClient getJestClient() {
+        JestClientFactory factory = new JestClientFactory();
+        factory.setHttpClientConfig(
+          new HttpClientConfig.Builder("http://10.95.96.39:9200")
+            .multiThreaded(true)
+            .defaultMaxTotalConnectionPerRoute(2)
+            .maxTotalConnection(10)
+            .build());
+        return factory.getObject();
+    }
 
     public KafkaConsumer<String, String> getConsumer(String group, Map<String, Object> configMap) {
         Properties config = new Properties();
