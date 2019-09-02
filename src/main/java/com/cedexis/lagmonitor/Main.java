@@ -287,14 +287,14 @@ public class Main {
                 long lEnd = endList.get(i);
 
                 sumLag += (lEnd - lStart);
-                LOGGER.info("type:partition_lag topic:{} group:{} partition:{} start:{} end:{} lag:{}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, lEnd - lStart);
+                LOGGER.debug("lagmonitor.type:partition_lag lagmonitor.partition.topic:{} lagmonitor.partition.group:{} lagmonitor.partition.id:{} lagmonitor.partition.offset.start:{} lagmonitor.partition.offset.end:{} lagmonitor.partition.lag:{}", topic, group, partitionInfos.get(i).partition(), lStart, lEnd, lEnd - lStart);
             }
         } catch(Exception exception) {
             LOGGER.error("partition count error", exception);
             return false;
         }
 
-        LOGGER.info("type:consumer_lag topic:{} group:{} sum:{}", topic, group, sumLag);
+        LOGGER.info("type:consumer_lag lagmonitor.consumer.topic:{} lagmonitor.consumer.group:{} lagmonitor.consumer.sum:{}", topic, group, sumLag);
 
         kafkaConsumer.poll(0);
 
